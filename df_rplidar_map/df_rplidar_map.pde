@@ -79,18 +79,16 @@ void setup() {
 
 
 
-int baud = 0;
-int baud1 = 0;
-  float xp, yp, x, y, x_save, y_save;
+int baudnum = 0;
+int bauddata = 0;
+float xp, yp, x, y, x_save, y_save;
 
 void draw() {
-
-
 	if (millis () - timer > 1000) {
 		timer = millis ();
 		textSize (24);
-		baud1 = baud;
-		baud = 0;
+		bauddata = baudnum;
+		baudnum = 0;
 	}
 
 
@@ -103,14 +101,14 @@ void draw() {
 				// println (input);
 				if (input != null && input.length() > 1) {
 
-					baud ++;
+					baudnum ++;
 					data = int (split (input, ','));
 
 					if (redrawS == true) {
 						background (backcolor);
 						fill (30, 30, 30);
 						textSize (24);
-						text (baud1+" Hz", 20, 40);
+						text (bauddata+" Hz", 20, 40);
 					}
 					translate (width/2, height/2);
 					if (mapLineS == true) {
@@ -154,8 +152,20 @@ void draw() {
 					}
 
 
-					drawPoint ();
-					
+					for (int i=0; i<data.length-1; i+=3) {
+						float rad = data[i]*3.14/180.0;
+						int distance = data[i+1];
+						x = distance * sin (-rad) / scale;
+						y = distance * cos (rad) / scale;
+						if (pointS) {
+							strokeWeight (5);
+							//             stroke (200, 0, 0);
+							stroke (100, 200, 200, 50);
+							point (x, y);
+							println (x+" "+y);
+						}
+					}
+
 
 					stroke (200, 150, 0);
 					strokeWeight (1);
@@ -237,23 +247,6 @@ void drawMapLine () {
 		fill (50, 50, 50);
 		text (i, axis_x+cos(hudu)*30-12, axis_y+sin(hudu)*30+6);
 	}
-}
-
-
-void drawPoint () {
-        for (int i=0; i<data.length-1; i+=3) {
-						float rad = data[i]*3.14/180.0;
-						int distance = data[i+1];
-						x = distance * sin (-rad) / scale;
-						y = distance * cos (rad) / scale;
-						if (pointS) {
-							strokeWeight (5);
-							//             stroke (200, 0, 0);
-							stroke (100, 200, 200, 50);
-							point (x, y);
-							println (x+" "+y);
-						}
-					}
 }
 
 

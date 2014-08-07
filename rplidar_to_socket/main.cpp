@@ -110,8 +110,6 @@ int main(int argc, const char * argv[]) {
 
 	printf ("server connected\n");
 
-	//send (sockfd, "hello", 5, 0);
-
 	const char * opt_com_path = NULL;
 	_u32         opt_com_baudrate = 115200;
 	u_result     op_result;
@@ -179,7 +177,7 @@ int main(int argc, const char * argv[]) {
 				if (current_quality >= 10) {
 					sprintf (buf, "%d,%d,%d,", (int)current_angle, (int)current_dist, (int)current_quality);
 					send (sockfd, buf, strlen (buf), 0);
-					
+
 					// printf("[%d] [%3d] %-2c theta: %d Dist: %d Q: %d \n", 
 					// 		count,
 					// 		pos,
@@ -187,7 +185,7 @@ int main(int argc, const char * argv[]) {
 					// 		current_angle,
 					// 		current_dist,
 					// 		current_quality);
-					
+
 				}
 			}
 			send (sockfd, "\n", 1, 0);
