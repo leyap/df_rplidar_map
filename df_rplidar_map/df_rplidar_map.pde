@@ -56,7 +56,7 @@ boolean circleS = false;
 boolean pointS = true;
 boolean lineS = false;
 boolean breakLineS = true;
-boolean connectLineS = true;
+boolean mapLineS = true;
 boolean pauseS = false;
 
 //color backcolor = color (15, 25, 15);
@@ -81,9 +81,10 @@ void setup() {
 
 int baud = 0;
 int baud1 = 0;
+  float xp, yp, x, y, x_save, y_save;
 
 void draw() {
-	float xp, yp, x, y, x_save, y_save;
+
 
 	if (millis () - timer > 1000) {
 		timer = millis ();
@@ -107,31 +108,13 @@ void draw() {
 
 					if (redrawS == true) {
 						background (backcolor);
-						//fill (0, 100, 200);
-						fill (5, 50, 3);
+						fill (30, 30, 30);
 						textSize (24);
 						text (baud1+" Hz", 20, 40);
 					}
 					translate (width/2, height/2);
-					if (connectLineS == true) {
-						noFill ();
-						//stroke (125, 125, 245);
-						stroke (5, 50, 3);
-						strokeWeight (1);
-						ellipse (0, 0, 30, 30);
-						ellipse (0, 0, 300, 300);
-						ellipse (0, 0, 600, 600);
-
-						for (int i=0; i < 360; i+=30) {
-							float hudu = i*PI/180.0; 
-							float axis_x = 300*cos (hudu);
-							float axis_y = 300*sin (hudu);
-							line (0, 0, axis_x, axis_y);
-							textSize (12);
-							//fill (0, 100, 200);
-							fill (5, 150, 180);
-							text (i, axis_x+cos(hudu)*30-12, axis_y+sin(hudu)*30+6);
-						}
+					if (mapLineS == true) {
+						drawMapLine ();
 					}
 
 
@@ -140,7 +123,7 @@ void draw() {
 					x_save = xp; 
 					y_save = yp;
 
-					for (int i=0; i<data.length-1; i+=2) {
+					for (int i=0; i<data.length-1; i+=3) {
 						float rad = data[i]*3.14/180.0;
 						int distance = data[i+1];
 						x = distance * sin (-rad) / scale;
@@ -149,14 +132,14 @@ void draw() {
 						//strokeWeight (3);
 						strokeWeight (1);
 						if (lineS ) {
-							stroke (100, 200, 0, 100);
+							stroke (100, 200, 0, 50);
 
 							line (0, 0, x, y);
 						}
 						if (circleS == true) { 
 							if (  breakLineS ? (sqrt ((x-xp)*(x-xp)+(y-yp)*(y-yp)) < 18) : true) {
 
-								stroke (100, 200, 200, 100);
+								stroke (100, 200, 200, 50);
 								line (x, y, xp, yp);
 							}
 							xp = x;
@@ -165,26 +148,14 @@ void draw() {
 					}
 					if (circleS == true) {
 						if (breakLineS ? (sqrt ((x_save-xp)*(x_save-xp)+(y_save-yp)*(y_save-yp)) < 18) : true) {
-							stroke (100, 200, 200, 100);						
+							stroke (100, 200, 200, 50);						
 							line (xp, yp, x_save, y_save);
 						}
 					}
 
 
-
-					for (int i=0; i<data.length-1; i+=2) {
-						float rad = data[i]*3.14/180.0;
-						int distance = data[i+1];
-						x = distance * sin (-rad) / scale;
-						y = distance * cos (rad) / scale;
-						if (pointS) {
-							strokeWeight (5);
-							//             stroke (200, 0, 0);
-							stroke (100, 200, 200, 100);
-							point (x, y);
-							//println (x+" "+y);
-						}
-					}
+					drawPoint ();
+					
 
 					stroke (200, 150, 0);
 					strokeWeight (1);
@@ -232,7 +203,7 @@ void keyPressed() {
 			redrawS = false;
 			break;
 		case 'c':
-			connectLineS = !connectLineS;
+			mapLineS = !mapLineS;
 			break;
 		case ' ':
 			pauseS = !pauseS;
@@ -246,6 +217,43 @@ void mouseWheel(MouseEvent event) {
 	if (scale <= 0.5) 
 		scale = 0.5;
 	// println(e);
+}
+
+//
+void drawMapLine () {
+	noFill ();
+	stroke (30, 30, 30);
+	strokeWeight (1);
+	ellipse (0, 0, 30, 30);
+	ellipse (0, 0, 300, 300);
+	ellipse (0, 0, 600, 600);
+
+	for (int i=0; i < 360; i+=30) {
+		float hudu = i*PI/180.0; 
+		float axis_x = 300*cos (hudu);
+		float axis_y = 300*sin (hudu);
+		line (0, 0, axis_x, axis_y);
+		textSize (12);
+		fill (50, 50, 50);
+		text (i, axis_x+cos(hudu)*30-12, axis_y+sin(hudu)*30+6);
+	}
+}
+
+
+void drawPoint () {
+        for (int i=0; i<data.length-1; i+=3) {
+						float rad = data[i]*3.14/180.0;
+						int distance = data[i+1];
+						x = distance * sin (-rad) / scale;
+						y = distance * cos (rad) / scale;
+						if (pointS) {
+							strokeWeight (5);
+							//             stroke (200, 0, 0);
+							stroke (100, 200, 200, 50);
+							point (x, y);
+							println (x+" "+y);
+						}
+					}
 }
 
 

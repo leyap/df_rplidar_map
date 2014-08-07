@@ -36,6 +36,7 @@
  *	Date:				2014-08-06
  *	official website:		http://www.dfrobot.com
  *	Description:			rplidar't data send to socket for df_rplidar_map
+ *	this code is based on RoboPeak's Demo App
  */
 
 
@@ -109,6 +110,7 @@ int main(int argc, const char * argv[]) {
 
 	printf ("server connected\n");
 
+	//send (sockfd, "hello", 5, 0);
 
 	const char * opt_com_path = NULL;
 	_u32         opt_com_baudrate = 115200;
@@ -165,9 +167,9 @@ int main(int argc, const char * argv[]) {
 		size_t   count = _countof(nodes);
 
 		op_result = drv->grabScanData(nodes, count);
-		//drv->ascendScanData (nodes, count);
 
 		if (IS_OK(op_result)) {
+			drv->ascendScanData (nodes, count);
 			for (int pos = 0; pos < (int)count; ++pos) {
 				short current_angle = (short) ((nodes[pos].angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f); 
 				short current_dist =   (short) (nodes[pos].distance_q2/4.0f);
@@ -175,17 +177,17 @@ int main(int argc, const char * argv[]) {
 				char sync_quality =   (char) ((nodes[pos].sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ? 'S' : ' ');
 
 				if (current_quality >= 10) {
-					sprintf (buf, "%d,%d,", (int)current_angle, (int)current_dist);
+					sprintf (buf, "%d,%d,%d,", (int)current_angle, (int)current_dist, (int)current_quality);
 					send (sockfd, buf, strlen (buf), 0);
-					/*
-					   printf("[%d] [%3d] %-2c theta: %d Dist: %d Q: %d \n", 
-					   count,
-					   pos,
-					   sync_quality,
-					   current_angle,
-					   current_dist,
-					   current_quality);
-					 */
+					
+					// printf("[%d] [%3d] %-2c theta: %d Dist: %d Q: %d \n", 
+					// 		count,
+					// 		pos,
+					// 		sync_quality,
+					// 		current_angle,
+					// 		current_dist,
+					// 		current_quality);
+					
 				}
 			}
 			send (sockfd, "\n", 1, 0);
