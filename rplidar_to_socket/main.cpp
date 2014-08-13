@@ -1,8 +1,5 @@
 /*
  * Copyright (C) 2014 DFRobot                                                  
- *                                                                                                                             
- * www.github.com/dfrobot/df_rplidar_to_socket (github as default source provider)
- *  DFRobot-A great source for opensource hardware and robot.                                     
  *                                                                             
  * df_rplidar_to_socket is free software: you can redistribute it and/or         
  * modify it under the terms of the GNU General Public License as       
@@ -37,8 +34,6 @@
 
 
 
-
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -52,24 +47,13 @@
 
 #include "rplidar.h" //RPLIDAR standard sdk, all-in-one header
 
-#define MAXBUF 1024
-
 #ifndef _countof
 #define _countof(_Array) (int)(sizeof(_Array) / sizeof(_Array[0]))
 #endif
 
 using namespace rp::standalone::rplidar;
 
-RPlidarDriver * drv ;
 
-int my_socket, new_fd;
-int pid;
-char buf[MAXBUF+1];
-socklen_t len;
-
-struct sockaddr_in my_addr, their_addr;
-
-//
 bool checkRPLIDARHealth(RPlidarDriver * drv) {
 	u_result     op_result;
 	rplidar_response_device_health_t healthinfo;
@@ -93,36 +77,35 @@ bool checkRPLIDARHealth(RPlidarDriver * drv) {
 	}
 }
 
-//
 int main(int argc, const char * argv[]) {
-	void* send_data (void *arg);
-	pthread_t send_tid;
 
-	if ((my_socket = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
-		perror ("[error in socket]\n");	
-		exit (1);
+	int sockfd;
+	int len;
+	char buf[1024+1];
+	struct sockaddr_in dest;
+	if ((sockfd = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror ("[error]\n");	
 	}
 
-	memset (&my_addr, 0, sizeof (my_addr));
-	my_addr.sin_family = AF_INET;
-	my_addr.sin_port = htons (atoi (argv[3]));
-	my_addr.sin_addr.s_addr = INADDR_ANY;
+	memset (&dest, 0, sizeof (dest));
+	dest.sin_family = AF_INET;
+	dest.sin_port = htons (atoi (argv[4]));
 
-
-	if (bind (my_socket, (struct sockaddr *) &my_addr, sizeof (struct sockaddr)) == -1) {
-		perror ("error in bind\n");
+	if (inet_aton (argv[3], (struct in_addr*) & dest.sin_addr.s_addr) == 0) {
+		perror ("inet_aton");
 		exit (2);
 	}
 
-	if (listen (my_socket, 10) == -1) {
-		perror ("[error in listen!]\n");
-		exit (3);
+	if (connect (sockfd, (struct sockaddr *) &dest, sizeof (dest)) == -1) {
+		perror ("[connect error!]\n");
+		exit (errno);
 	}
 
-	printf ("wait for connect\n");
+	printf ("server connected\n");
 
 	const char * opt_com_path = NULL;
 	_u32         opt_com_baudrate = 115200;
+	u_result     op_result;
 
 	// read serial port from the command line...
 	if (argc>1) 
@@ -143,7 +126,7 @@ int main(int argc, const char * argv[]) {
 	}
 
 	// create the driver instance
-	drv = RPlidarDriver::CreateDriver(RPlidarDriver::DRIVER_TYPE_SERIALPORT);
+	RPlidarDriver * drv = RPlidarDriver::CreateDriver(RPlidarDriver::DRIVER_TYPE_SERIALPORT);
 
 	if (!drv) {
 		fprintf(stderr, "insufficent memory, exit\n");
@@ -170,41 +153,11 @@ int main(int argc, const char * argv[]) {
 	drv->startScan();
 
 	// fetech result and print it out...
-	//
-	len = sizeof (struct sockaddr);
-	while (1) {
-		if ((new_fd = accept (my_socket, (struct sockaddr *) &their_addr, &len)) == -1) {
-			perror ("[error in accept]\n");
-			exit (4);
-		} else {
-			char clntName[INET_ADDRSTRLEN];
-			if (inet_ntop (AF_INET, &their_addr.sin_addr.s_addr, clntName, sizeof (clntName)) != NULL) {
-				printf ("Handing client %s/%d\n", clntName, ntohs (their_addr.sin_port));
-			} else {
-				puts ("Unable to get client address");
-			}
-
-			pthread_create (&send_tid, NULL, send_data, (void*)new_fd);
-		}
-
-	}
-
-
-	// done!
-on_finished:
-	RPlidarDriver::DisposeDriver(drv);
-	close (my_socket);
-	return 0;
-}
-
-
-void* send_data (void* arg) {
 	while (1) {
 		rplidar_response_measurement_node_t nodes[360*2];
 		size_t   count = _countof(nodes);
 
-
-		u_result op_result = drv->grabScanData(nodes, count);
+		op_result = drv->grabScanData(nodes, count);
 
 		if (IS_OK(op_result)) {
 			drv->ascendScanData (nodes, count);
@@ -212,15 +165,11 @@ void* send_data (void* arg) {
 				short current_angle = (short) ((nodes[pos].angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f); 
 				short current_dist =   (short) (nodes[pos].distance_q2/4.0f);
 				char current_quality =  (char) (nodes[pos].sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
-				//char sync_quality =   (char) ((nodes[pos].sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ? 'S' : ' ');
+				char sync_quality =   (char) ((nodes[pos].sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ? 'S' : ' ');
 
 				if (current_quality >= 10) {
 					sprintf (buf, "%d,%d,%d,", (int)current_angle, (int)current_dist, (int)current_quality);
-					int send_result = send ((int)arg, buf, strlen (buf), MSG_NOSIGNAL);
-					if (send_result == -1) {
-						printf ("send error\n");
-						goto thread_end;
-					}
+					send (sockfd, buf, strlen (buf), 0);
 
 					// printf("[%d] [%3d] %-2c theta: %d Dist: %d Q: %d \n", 
 					// 		count,
@@ -232,14 +181,13 @@ void* send_data (void* arg) {
 
 				}
 			}
-			send ((int)arg, "\n", 1, MSG_NOSIGNAL);
+			send (sockfd, "\n", 1, 0);
 		}
 	}
-thread_end:
-	printf ("end pthread\n");
-	close ((int)arg);
+
+	// done!
+on_finished:
+	RPlidarDriver::DisposeDriver(drv);
 	return 0;
 }
-
-
 

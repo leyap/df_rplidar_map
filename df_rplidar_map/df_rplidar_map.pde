@@ -28,7 +28,7 @@
  *  version:		0.1
  *  Author:		lisper <lisper.li@dfrobot.com>
  *  Date:		2014-08-06
- *  Description:	processing map client for rplidar    
+ *  Description:	processing draw server for rplidar      
  */
 
 
@@ -43,7 +43,7 @@ int bgColor = 0;
 int direction = 1;
 int textLine = 60;
 byte interesting = 10;
-Client c;
+Server myServer;
 
 int data[];
 boolean redrawS = true;
@@ -54,6 +54,7 @@ boolean breakLineS = true;
 boolean mapLineS = true;
 boolean pauseS = false;
 
+//color backcolor = color (15, 25, 15);
 color backcolor = color (15, 15, 10);
 
 float scale = 10.0;
@@ -62,13 +63,12 @@ float scale = 10.0;
 void setup() {
 	size(1366, 768);
 	// textFont(createFont("Arial", 16));
-	c = new Client (this, "192.168.1.9", 8087);
+	myServer = new Server(this, port); // Starts a myServer on port 10002
 	background(backcolor);
 	strokeWeight (3);
 	textSize (48);
 	fill (0, 100, 200);
 	//frameRate(8);
-	noSmooth ();
 }
 
 
@@ -89,9 +89,10 @@ void draw() {
 
 
 	if (myServerRunning == true && pauseS == false) {
-		if (c != null) {
-			if (c.available() > 1) {
-				String input = c.readStringUntil(interesting); 
+		Client thisClient = myServer.available();
+		if (thisClient != null) {
+			if (thisClient.available() > 1) {
+				String input = thisClient.readStringUntil(interesting); 
 				// println (input);
 				if (input != null && input.length() > 1) {
 
@@ -153,12 +154,10 @@ void draw() {
 						y = distance * cos (rad) / scale;
 						if (pointS) {
 							strokeWeight (5);
-							// stroke (200, 0, 0);
-							smooth ();
+							//             stroke (200, 0, 0);
 							stroke (100, 200, 200, 50);
 							point (x, y);
-							noSmooth ();
-							//println (x+" "+y);
+							println (x+" "+y);
 						}
 					}
 
@@ -171,24 +170,25 @@ void draw() {
 					//text("mesage from: " + thisClient.ip() +" "+thisClient.readString (), 10, 10);
 				}
 			}
+		} else {
+			//println (".");
 		}
 	}
 }
 
 
-
 //
 void keyPressed() {
 	switch (key) {
-		//case 's':
-		//myServer.stop();
-		//myServerRunning = false;
-		//break;
-		//case 'a': 
-		//	myServer.stop();
-		//	myServer = new Server (this, port);
-		//	myServerRunning = true;
-		//	break;
+		case 's':
+			myServer.stop();
+			myServerRunning = false;
+			break;
+		case 'a': 
+			myServer.stop();
+			myServer = new Server (this, port);
+			myServerRunning = true;
+			break;
 		case '1':
 			pointS = !pointS;
 			break;
@@ -234,13 +234,13 @@ void drawMapLine () {
 	ellipse (0, 0, 600, 600);
 
 	for (int i=0; i < 360; i+=30) {
-		float rad = i*PI/180.0; 
-		float axis_x = 300*cos (rad);
-		float axis_y = 300*sin (rad);
+		float hudu = i*PI/180.0; 
+		float axis_x = 300*cos (hudu);
+		float axis_y = 300*sin (hudu);
 		line (0, 0, axis_x, axis_y);
 		textSize (12);
 		fill (50, 50, 50);
-		text (i, axis_x+cos(rad)*30-12, axis_y+sin(rad)*30+6);
+		text (i, axis_x+cos(hudu)*30-12, axis_y+sin(hudu)*30+6);
 	}
 }
 
