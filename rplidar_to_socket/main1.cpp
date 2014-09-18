@@ -1,8 +1,12 @@
 /*
  * Copyright (C) 2014 DFRobot                                                  
  *                                                                             
+ * df_rplidar_to_socket, This library provides a quite complete function for   
+ * DFPlayer mini mp3 module.                                                   
  * www.github.com/dfrobot/df_rplidar_to_socket (github as default source provider)
  *  DFRobot-A great source for opensource hardware and robot.                  
+ *                                                                             
+ * This file is part of the DFplayer_Mini_Mp3 library.                         
  *                                                                             
  * df_rplidar_to_socket is free software: you can redistribute it and/or         
  * modify it under the terms of the GNU General Public License as       
@@ -37,8 +41,6 @@
 
 
 
-
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -52,32 +54,13 @@
 
 #include "rplidar.h" //RPLIDAR standard sdk, all-in-one header
 
-#define MAXBUF 1024
-
 #ifndef _countof
 #define _countof(_Array) (int)(sizeof(_Array) / sizeof(_Array[0]))
 #endif
 
 using namespace rp::standalone::rplidar;
 
-RPlidarDriver * drv ;
 
-int my_socket, new_fd;
-int pid;
-int pthread_num;
-int pthread_num_need;
-
-char buf[MAXBUF+1];
-
-struct sockaddr_in my_addr, their_addr;
-
-
-rplidar_response_measurement_node_t nodes[360*2];
-size_t   count ;
-
-pthread_mutex_t counter_lock = PTHREAD_MUTEX_INITIALIZER;
-
-//
 bool checkRPLIDARHealth(RPlidarDriver * drv) {
 	u_result     op_result;
 	rplidar_response_device_health_t healthinfo;
@@ -101,38 +84,35 @@ bool checkRPLIDARHealth(RPlidarDriver * drv) {
 	}
 }
 
-//
 int main(int argc, const char * argv[]) {
-	void* send_data (void *arg);
-	void* get_data (void *arg);
-	pthread_t send_tid;
-	pthread_t data_tid;
 
-	if ((my_socket = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
-		perror ("[error in socket]\n");	
-		exit (1);
+	int sockfd;
+	int len;
+	char buf[1024+1];
+	struct sockaddr_in dest;
+	if ((sockfd = socket (AF_INET, SOCK_STREAM, 0)) < 0) {
+		perror ("[error]\n");	
 	}
 
-	memset (&my_addr, 0, sizeof (my_addr));
-	my_addr.sin_family = AF_INET;
-	my_addr.sin_port = htons (atoi (argv[3]));
-	my_addr.sin_addr.s_addr = INADDR_ANY;
+	memset (&dest, 0, sizeof (dest));
+	dest.sin_family = AF_INET;
+	dest.sin_port = htons (atoi (argv[4]));
 
-
-	if (bind (my_socket, (struct sockaddr *) &my_addr, sizeof (struct sockaddr)) == -1) {
-		perror ("error in bind\n");
+	if (inet_aton (argv[3], (struct in_addr*) & dest.sin_addr.s_addr) == 0) {
+		perror ("inet_aton");
 		exit (2);
 	}
 
-	if (listen (my_socket, 10) == -1) {
-		perror ("[error in listen!]\n");
-		exit (3);
+	if (connect (sockfd, (struct sockaddr *) &dest, sizeof (dest)) == -1) {
+		perror ("[connect error!]\n");
+		exit (errno);
 	}
 
-	printf ("wait for connect\n");
+	printf ("server connected\n");
 
 	const char * opt_com_path = NULL;
 	_u32         opt_com_baudrate = 115200;
+	u_result     op_result;
 
 	// read serial port from the command line...
 	if (argc>1) 
@@ -153,7 +133,7 @@ int main(int argc, const char * argv[]) {
 	}
 
 	// create the driver instance
-	drv = RPlidarDriver::CreateDriver(RPlidarDriver::DRIVER_TYPE_SERIALPORT);
+	RPlidarDriver * drv = RPlidarDriver::CreateDriver(RPlidarDriver::DRIVER_TYPE_SERIALPORT);
 
 	if (!drv) {
 		fprintf(stderr, "insufficent memory, exit\n");
@@ -180,103 +160,41 @@ int main(int argc, const char * argv[]) {
 	drv->startScan();
 
 	// fetech result and print it out...
-
-	pthread_create (&data_tid, NULL, get_data, NULL);
-	//
-	socklen_t len;
-	len = sizeof (struct sockaddr);
 	while (1) {
-		if ((new_fd = accept (my_socket, (struct sockaddr *) &their_addr, &len)) == -1) {
-			perror ("[error in accept]\n");
-			exit (4);
-		} else {
-			pthread_mutex_lock (&counter_lock);
-			pthread_num++;
+		rplidar_response_measurement_node_t nodes[360*2];
+		size_t   count = _countof(nodes);
 
-			char clntName[INET_ADDRSTRLEN];
-			if (inet_ntop (AF_INET, &their_addr.sin_addr.s_addr, clntName, sizeof (clntName)) != NULL) {
-				printf ("Handing client %s/%d, online is %d\n", clntName, ntohs (their_addr.sin_port), pthread_num);
-			} else {
-				puts ("Unable to get client address");
+		op_result = drv->grabScanData(nodes, count);
+
+		if (IS_OK(op_result)) {
+			drv->ascendScanData (nodes, count);
+			for (int pos = 0; pos < (int)count; ++pos) {
+				short current_angle = (short) ((nodes[pos].angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f); 
+				short current_dist =   (short) (nodes[pos].distance_q2/4.0f);
+				char current_quality =  (char) (nodes[pos].sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
+				char sync_quality =   (char) ((nodes[pos].sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ? 'S' : ' ');
+
+				if (current_quality >= 10) {
+					sprintf (buf, "%d,%d,%d,", (int)current_angle, (int)current_dist, (int)current_quality);
+					send (sockfd, buf, strlen (buf), 0);
+
+					// printf("[%d] [%3d] %-2c theta: %d Dist: %d Q: %d \n", 
+					// 		count,
+					// 		pos,
+					// 		sync_quality,
+					// 		current_angle,
+					// 		current_dist,
+					// 		current_quality);
+
+				}
 			}
-			pthread_mutex_unlock (&counter_lock);
-
-			pthread_create (&send_tid, NULL, send_data, (void*)new_fd);
+			send (sockfd, "\n", 1, 0);
 		}
-
 	}
-
 
 	// done!
 on_finished:
 	RPlidarDriver::DisposeDriver(drv);
-	close (my_socket);
 	return 0;
 }
-
-//
-void* send_data (void* arg) {
-	while (1) {
-		pthread_mutex_lock (&counter_lock);
-		if (!pthread_num_need) {
-			pthread_mutex_unlock (&counter_lock);
-			continue;
-		}
-		pthread_num_need --;
-		for (int pos = 0; pos < (int)count; ++pos) {
-			short current_angle = (short) ((nodes[pos].angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f); 
-			short current_dist =   (short) (nodes[pos].distance_q2/4.0f);
-			char current_quality =  (char) (nodes[pos].sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
-			//char sync_quality =   (char) ((nodes[pos].sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ? 'S' : ' ');
-
-			if (current_quality >= 10) {
-				sprintf (buf, "%d,%d,%d,", (int)current_angle, (int)current_dist, (int)current_quality);
-				int send_result = send ((int)arg, buf, strlen (buf), MSG_NOSIGNAL);
-				if (send_result == -1) {
-					printf ("send error\n");
-					goto thread_end;
-				}
-
-				// printf("[%d] [%3d] %-2c theta: %d Dist: %d Q: %d \n", 
-				// 		count,
-				// 		pos,
-				// 		sync_quality,
-				// 		current_angle,
-				// 		current_dist,
-				// 		current_quality);
-
-			}
-		}
-		int send_result = send ((int)arg, "\n", 1, MSG_NOSIGNAL);
-		if (send_result == -1) {
-			printf ("send error\n");
-			goto thread_end;
-		}
-		pthread_mutex_unlock (&counter_lock);
-	}
-thread_end:
-	pthread_num--;
-	printf ("end pthread, online is %d\n", pthread_num);
-	pthread_mutex_unlock (&counter_lock);
-	close ((int)arg);
-	return 0;
-}
-
-
-
-//
-void* get_data (void* arg) {
-	count = _countof(nodes);
-	while (1) {
-		pthread_mutex_lock (&counter_lock);
-		u_result op_result = drv->grabScanData(nodes, count);	
-
-		if (IS_OK(op_result)) {
-			pthread_num_need = pthread_num;
-			drv->ascendScanData (nodes, count);	//sort data
-		}
-		pthread_mutex_unlock (&counter_lock);
-	}
-}
-
 
