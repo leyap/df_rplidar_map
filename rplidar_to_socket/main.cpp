@@ -206,65 +206,6 @@ thread_end:
 	return 0;
 }
 
-//
-void* send_data (void* arg) {
-	int send_result;
-	int min_distance ;
-	int min_angle = 0;
-	struct pthread_arg myarg = *(struct pthread_arg*)arg;
-
-	while (1) {
-		pthread_mutex_lock (&counter_lock);
-		if (!pthread_num_need) {
-			pthread_mutex_unlock (&counter_lock);
-			continue;
-		}
-		pthread_num_need --;
-		min_distance = 1000;
-		for (int pos = 0; pos < (int)count; ++pos) {
-			short current_angle = (short) ((nodes[pos].angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f); 
-			short current_dist =   (short) (nodes[pos].distance_q2/4.0f);
-			char current_quality =  (char) (nodes[pos].sync_quality >> RPLIDAR_RESP_MEASUREMENT_QUALITY_SHIFT);
-			//char sync_quality =   (char) ((nodes[pos].sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ? 'S' : ' ');
-
-			if (current_quality >= 10 && current_dist > 10) {
-				if (current_dist < min_distance) {
-					min_distance = current_dist;
-					min_angle = current_angle;
-				}
-				sprintf (buf, "%d,%d,%d,", (int)current_angle, (int)current_dist, (int)current_quality);
-				send_result = send ((int)myarg.fd, buf, strlen (buf), MSG_NOSIGNAL);
-				if (send_result == -1) {
-					printf ("send error\n");
-					goto thread_end;
-				}
-
-				// printf("[%d] [%3d] %-2c theta: %d Dist: %d Q: %d \n", 
-				// 		count,
-				// 		pos,
-				// 		sync_quality,
-				// 		current_angle,
-				// 		current_dist,
-				// 		current_quality);
-
-			}
-		}
-	///	printf ("min_dist=%d, min_angle=%d\n", min_distance, min_angle);
-		send_result = send ((int)myarg.fd, "\n", 1, MSG_NOSIGNAL);
-		if (send_result == -1) {
-			printf ("send error\n");
-			goto thread_end;
-		}
-		pthread_mutex_unlock (&counter_lock);
-	}
-thread_end:
-	pthread_num--;
-	printf ("end pthread, online is %d\n", pthread_num);
-	pthread_mutex_unlock (&counter_lock);
-	close ((int)myarg.fd);
-	return 0;
-}
-
 
 //
 void* scan_data (void* arg) {
