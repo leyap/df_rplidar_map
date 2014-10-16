@@ -46,6 +46,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <time.h>
+#include <signal.h>
 
 #include "rplidar.h" //RPLIDAR standard sdk, all-in-one header
 
@@ -74,6 +76,8 @@ int pthread_num;
 int pthread_num_need;
 
 char buf[MAXBUF+1];
+
+time_t nowtime;
 
 
 rplidar_response_measurement_node_t nodes[360*2];
@@ -135,7 +139,8 @@ void start_net_server (uint16_t port) {
 
 			if (inet_ntop (AF_INET, &their_addr.sin_addr.s_addr, arg.name, sizeof (arg.name)) != NULL) {
 				arg.port = ntohs (their_addr.sin_port);
-				printf ("Handing client %s/%d, online is %d\n", arg.name, arg.port, pthread_num);
+				time (&nowtime);
+				printf ("Handing client %s/%d, online is %d  %s", arg.name, arg.port, pthread_num, ctime (&nowtime));
 			} else {
 				puts ("Unable to get client address");
 			}
@@ -190,17 +195,18 @@ void* send_data (void* arg) {
 
 			}
 		}
-	///	printf ("min_dist=%d, min_angle=%d\n", min_distance, min_angle);
+		///	printf ("min_dist=%d, min_angle=%d\n", min_distance, min_angle);
 		send_result = send ((int)myarg.fd, "\n", 1, MSG_NOSIGNAL);
 		if (send_result == -1) {
-			printf ("send error\n");
+			//printf ("send error\n");
 			goto thread_end;
 		}
 		pthread_mutex_unlock (&counter_lock);
 	}
 thread_end:
 	pthread_num--;
-	printf ("end pthread, online is %d\n", pthread_num);
+	time (&nowtime);
+	printf ("[client %s:%d] is offline, online num is %d  %s",myarg.name, myarg.port, pthread_num, ctime (&nowtime));
 	pthread_mutex_unlock (&counter_lock);
 	close ((int)myarg.fd);
 	return 0;
@@ -263,7 +269,7 @@ int main(int argc, const char * argv[]) {
 		port = strtoul(argv[3], NULL, 10);
 		//port = atoi (argv[3]);
 		printf ("port: %d\n", port);
-		}
+	}
 
 	if (!opt_com_path) {
 #ifdef _WIN32
