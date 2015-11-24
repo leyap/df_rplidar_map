@@ -26,7 +26,7 @@ CXXSRC += main.cpp
 C_INCLUDES += -I$(CURDIR)/../../sdk/include
 
 EXTRA_OBJ := 
-LD_LIBS := -lstdc++ -lpthread -lrt
+LD_LIBS += -lstdc++ -lpthread
 
 all: build_app
 

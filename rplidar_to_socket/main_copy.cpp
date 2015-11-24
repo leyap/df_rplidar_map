@@ -41,7 +41,8 @@
 using namespace rp::standalone::rplidar;
 
 
-bool checkRPLIDARHealth(RPlidarDriver * drv) {
+bool checkRPLIDARHealth(RPlidarDriver * drv)
+{
 	u_result     op_result;
 	rplidar_response_device_health_t healthinfo;
 
@@ -70,12 +71,10 @@ int main(int argc, const char * argv[]) {
 	u_result     op_result;
 
 	// read serial port from the command line...
-	if (argc>1) 
-		opt_com_path = argv[1]; // or set to a fixed value: e.g. "com3" 
+	if (argc>1) opt_com_path = argv[1]; // or set to a fixed value: e.g. "com3" 
 
 	// read baud rate from the command line if specified...
-	if (argc>2) 
-		opt_com_baudrate = strtoul(argv[2], NULL, 10);
+	if (argc>2) opt_com_baudrate = strtoul(argv[2], NULL, 10);
 
 
 	if (!opt_com_path) {
@@ -122,10 +121,9 @@ int main(int argc, const char * argv[]) {
 		op_result = drv->grabScanData(nodes, count);
 
 		if (IS_OK(op_result)) {
-			//for (int pos = 0; pos < (int)count ; ++pos) {
-			for (int pos = 0; pos < (int)3; ++pos) {
-				printf("[%d] %s theta: %03.2f Dist: %08.2f Q: %d \n", 
-						count,
+			drv->ascendScanData(nodes, count);
+			for (int pos = 0; pos < (int)count ; ++pos) {
+				printf("%s theta: %03.2f Dist: %08.2f Q: %d \n", 
 						(nodes[pos].sync_quality & RPLIDAR_RESP_MEASUREMENT_SYNCBIT) ?"S ":"  ", 
 						(nodes[pos].angle_q6_checkbit >> RPLIDAR_RESP_MEASUREMENT_ANGLE_SHIFT)/64.0f,
 						nodes[pos].distance_q2/4.0f,
@@ -140,4 +138,3 @@ on_finished:
 	RPlidarDriver::DisposeDriver(drv);
 	return 0;
 }
-
